@@ -40,7 +40,12 @@
 /**
  * @brief   Disabled value for BASEPRI register.
  */
-#define CORTEX_BASEPRI_DISABLED         0U
+#ifdef __ARMCC_VERSION
+  /* ARMCC/keil assembler doesn't seem to like "0U" */
+#	define CORTEX_BASEPRI_DISABLED         0
+#else
+#	define CORTEX_BASEPRI_DISABLED         0U
+#endif
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
