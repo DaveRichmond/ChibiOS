@@ -35,7 +35,7 @@
 
 #include "ch.h"
 
-#if CH_CFG_USE_HEAP || defined(__DOXYGEN__)
+#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -44,13 +44,19 @@
 /*
  * Defaults on the best synchronization mechanism available.
  */
-#if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 #define H_LOCK(h)       chMtxLock(&(h)->h_mtx)
 #define H_UNLOCK(h)     chMtxUnlock(&(h)->h_mtx)
 #else
-#define H_LOCK(h)       chSemWait(&(h)->h_sem)
+#define H_LOCK(h)       (void) chSemWait(&(h)->h_sem)
 #define H_UNLOCK(h)     chSemSignal(&(h)->h_sem)
 #endif
+
+#define LIMIT(p)                                                            \
+  /*lint -save -e9087 [11.3] Safe cast.*/                                   \
+  (union heap_header *)((uint8_t *)(p) +                                    \
+                        sizeof(union heap_header) + (p)->h.size)            \
+  /*lint -restore*/
 
 /*===========================================================================*/
 /* Module exported variables.                                                */
@@ -85,9 +91,9 @@ static memory_heap_t default_heap;
 void _heap_init(void) {
 
   default_heap.h_provider = chCoreAlloc;
-  default_heap.h_free.h.u.next = (union heap_header *)NULL;
+  default_heap.h_free.h.u.next = NULL;
   default_heap.h_free.h.size = 0;
-#if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
   chMtxObjectInit(&default_heap.h_mtx);
 #else
   chSemObjectInit(&default_heap.h_sem, 1);
@@ -106,16 +112,16 @@ void _heap_init(void) {
  * @init
  */
 void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size) {
-  union heap_header *hp;
+  union heap_header *hp = buf;
 
   chDbgCheck(MEM_IS_ALIGNED(buf) && MEM_IS_ALIGNED(size));
 
-  heapp->h_provider = (memgetfunc_t)NULL;
-  heapp->h_free.h.u.next = hp = buf;
+  heapp->h_provider = NULL;
+  heapp->h_free.h.u.next = hp;
   heapp->h_free.h.size = 0;
   hp->h.u.next = NULL;
   hp->h.size = size - sizeof(union heap_header);
-#if CH_CFG_USE_MUTEXES || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
   chMtxObjectInit(&heapp->h_mtx);
 #else
   chSemObjectInit(&heapp->h_sem, 1);
@@ -141,8 +147,9 @@ void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size) {
 void *chHeapAlloc(memory_heap_t *heapp, size_t size) {
   union heap_header *qp, *hp, *fp;
 
-  if (heapp == NULL)
+  if (heapp == NULL) {
     heapp = &default_heap;
+  }
 
   size = MEM_ALIGN_NEXT(size);
   qp = &heapp->h_free;
@@ -151,7 +158,7 @@ void *chHeapAlloc(memory_heap_t *heapp, size_t size) {
   while (qp->h.u.next != NULL) {
     hp = qp->h.u.next;
     if (hp->h.size >= size) {
-      if (hp->h.size < size + sizeof(union heap_header)) {
+      if (hp->h.size < (size + sizeof(union heap_header))) {
         /* Gets the whole block even if it is slightly bigger than the
            requested size because the fragment would be too small to be
            useful.*/
@@ -159,16 +166,20 @@ void *chHeapAlloc(memory_heap_t *heapp, size_t size) {
       }
       else {
         /* Block bigger enough, must split it.*/
+        /*lint -save -e9087 [11.3] Safe cast.*/
         fp = (void *)((uint8_t *)(hp) + sizeof(union heap_header) + size);
+        /*lint -restore*/
         fp->h.u.next = hp->h.u.next;
-        fp->h.size = hp->h.size - sizeof(union heap_header) - size;
+        fp->h.size = (hp->h.size - sizeof(union heap_header)) - size;
         qp->h.u.next = fp;
         hp->h.size = size;
       }
       hp->h.u.heap = heapp;
       H_UNLOCK(heapp);
 
+      /*lint -save -e9087 [11.3] Safe cast.*/
       return (void *)(hp + 1);
+      /*lint -restore*/
     }
     qp = hp;
   }
@@ -176,23 +187,21 @@ void *chHeapAlloc(memory_heap_t *heapp, size_t size) {
 
   /* More memory is required, tries to get it from the associated provider
      else fails.*/
-  if (heapp->h_provider) {
+  if (heapp->h_provider != NULL) {
     hp = heapp->h_provider(size + sizeof(union heap_header));
     if (hp != NULL) {
       hp->h.u.heap = heapp;
       hp->h.size = size;
       hp++;
 
+      /*lint -save -e9087 [11.3] Safe cast.*/
       return (void *)hp;
+      /*lint -restore*/
     }
   }
 
   return NULL;
 }
-
-#define LIMIT(p) (union heap_header *)((uint8_t *)(p) + \
-                                        sizeof(union heap_header) + \
-                                        (p)->h.size)
 
 /**
  * @brief   Frees a previously allocated memory block.
@@ -207,7 +216,9 @@ void chHeapFree(void *p) {
 
   chDbgCheck(p != NULL);
 
+  /*lint -save -e9087 [11.3] Safe cast.*/
   hp = (union heap_header *)p - 1;
+  /*lint -restore*/
   heapp = hp->h.u.heap;
   qp = &heapp->h_free;
 
@@ -263,10 +274,14 @@ size_t chHeapStatus(memory_heap_t *heapp, size_t *sizep) {
 
   H_LOCK(heapp);
   sz = 0;
-  for (n = 0, qp = &heapp->h_free; qp->h.u.next; n++, qp = qp->h.u.next) {
+  n = 0;
+  qp = &heapp->h_free;
+  while (qp->h.u.next != NULL) {
     sz += qp->h.u.next->h.size;
+    n++;
+    qp = qp->h.u.next;
   }
-  if (sizep) {
+  if (sizep != NULL) {
     *sizep = sz;
   }
   H_UNLOCK(heapp);
@@ -274,6 +289,6 @@ size_t chHeapStatus(memory_heap_t *heapp, size_t *sizep) {
   return n;
 }
 
-#endif /* CH_CFG_USE_HEAP */
+#endif /* CH_CFG_USE_HEAP == TRUE */
 
 /** @} */

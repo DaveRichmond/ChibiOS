@@ -51,21 +51,45 @@ endif
 # Architecture or project specific options
 #
 
-# Stack size to be allocated to the Cortex-M process stack. This stack is
-# the stack used by the main() thread.
-ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 0x400
+# Stack size to be allocated to the ARM System/User stack. This
+# stack is the stack used by the main() thread.
+ifeq ($(USE_SYSTEM_STACKSIZE),)
+  USE_SYSTEM_STACKSIZE = 0x400
 endif
 
-# Stack size to the allocated to the Cortex-M main/exceptions stack. This
+# Stack size to the allocated to the ARM IRQ stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x400
+  USE_IRQ_STACKSIZE = 0x400
 endif
 
-# Enables the use of FPU on Cortex-M4 (no, softfp, hard).
+# Stack size to the allocated to the ARM FIQ stack. This
+# stack is used for processing interrupts and exceptions.
+ifeq ($(USE_FIQ_STACKSIZE),)
+  USE_FIQ_STACKSIZE = 64
+endif
+
+# Stack size to the allocated to the ARM Supervisor stack. This
+# stack is used for processing interrupts and exceptions.
+ifeq ($(USE_SUPERVISOR_STACKSIZE),)
+  USE_SUPERVISOR_STACKSIZE = 8
+endif
+
+# Stack size to the allocated to the ARM Undefined stack. This
+# stack is used for processing interrupts and exceptions.
+ifeq ($(USE_UND_STACKSIZE),)
+  USE_UND_STACKSIZE = 8
+endif
+
+# Stack size to the allocated to the ARM Abort stack. This
+# stack is used for processing interrupts and exceptions.
+ifeq ($(USE_ABT_STACKSIZE),)
+  USE_ABT_STACKSIZE = 8
+endif
+
+# Enables the use of FPU.
 ifeq ($(USE_FPU),)
-  USE_FPU = hard
+  USE_FPU = no
 endif
 
 #
@@ -81,25 +105,16 @@ PROJECT = ch
 
 # Imported source files and paths
 CHIBIOS = ../../..
-include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/templates/platform.mk
-include $(CHIBIOS)/os/hal/templates/osal/osal.mk
+include $(CHIBIOS)/os/rt/rt.mk
+include $(CHIBIOS)/os/rt/ports/ARM/compilers/GCC/mk/port_generic.mk
 
 # Define linker script file here
-PORTLD  = ${CHIBIOS}/os/common/ports/ARMCMx/compilers/GCC/ld
-LDSCRIPT= $(PORTLD)/STM32F407xG.ld
+LDSCRIPT= ch.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-PORTSRC = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/crt0.c \
-          $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/vectors.c
 CSRC = $(PORTSRC) \
        $(KERNSRC) \
-       $(TESTSRC) \
-       $(HALSRC) \
-       $(OSALSRC) \
-       $(PLATFORMSRC) \
-       $(BOARDSRC) \
        main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
@@ -129,12 +144,8 @@ TCPPSRC =
 # List ASM source files here
 ASMSRC = $(PORTASM)
 
-PORTINC = ${CHIBIOS}/os/ext/CMSIS/include \
-          ${CHIBIOS}/os/ext/CMSIS/ST \
-          ${CHIBIOS}/os/common/ports/ARMCMx/devices/STM32F4xx
-INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
-         $(HALINC) $(OSALINC) $(PLATFORMINC) $(BOARDINC) \
-         $(CHIBIOS)/os/various
+# List of the standard inclusion directories.
+INCDIR = $(PORTINC) $(KERNINC)
 
 #
 # Project, sources and paths
@@ -144,7 +155,7 @@ INCDIR = $(PORTINC) $(KERNINC) $(TESTINC) \
 # Compiler settings
 #
 
-MCU  = cortex-m4
+MCU  = arm7tdmi
 
 #TRGT = arm-elf-
 TRGT = arm-none-eabi-
@@ -184,7 +195,7 @@ CPPWARN = -Wall -Wextra
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = -DSTM32F407xx
+UDEFS =
 
 # Define ASM defines here
 UADEFS =
@@ -202,5 +213,11 @@ ULIBS =
 # End of user defines
 ##############################################################################
 
-RULESPATH = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC
+RULESPATH = $(CHIBIOS)/os/common/ports/ARM/compilers/GCC
 include $(RULESPATH)/rules.mk
+
+##############################################################################
+# MISRA check rule, requires PCLint and the setup files, not provided.
+#
+misra:
+	@lint-nt -v -w3 $(DEFS) pclint/co-gcc.lnt pclint/au-misra3.lnt pclint/waivers.lnt $(IINCDIR) $(CSRC) &> misra.txt

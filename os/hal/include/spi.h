@@ -28,7 +28,7 @@
 #ifndef _SPI_H_
 #define _SPI_H_
 
-#if HAL_USE_SPI || defined(__DOXYGEN__)
+#if (HAL_USE_SPI == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver constants.                                                         */
@@ -211,21 +211,7 @@ typedef enum {
  * @name    Low level driver helper macros
  * @{
  */
-#if SPI_USE_WAIT || defined(__DOXYGEN__)
-/**
- * @brief   Waits for operation completion.
- * @details This function waits for the driver to complete the current
- *          operation.
- * @pre     An operation must be running while the function is invoked.
- * @note    No more than one thread can wait on a SPI driver using
- *          this function.
- *
- * @param[in] spip      pointer to the @p SPIDriver object
- *
- * @notapi
- */
-#define _spi_wait_s(spip) osalThreadSuspendS(&(spip)->thread)
-
+#if (SPI_USE_WAIT == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Wakes up the waiting thread.
  *
@@ -239,7 +225,6 @@ typedef enum {
   osalSysUnlockFromISR();                                                   \
 }
 #else /* !SPI_USE_WAIT */
-#define _spi_wait_s(spip)
 #define _spi_wakeup_isr(spip)
 #endif /* !SPI_USE_WAIT */
 
@@ -293,16 +278,16 @@ extern "C" {
   void spiExchange(SPIDriver *spip, size_t n, const void *txbuf, void *rxbuf);
   void spiSend(SPIDriver *spip, size_t n, const void *txbuf);
   void spiReceive(SPIDriver *spip, size_t n, void *rxbuf);
-#endif /* SPI_USE_WAIT */
+#endif
 #if SPI_USE_MUTUAL_EXCLUSION
   void spiAcquireBus(SPIDriver *spip);
   void spiReleaseBus(SPIDriver *spip);
-#endif /* SPI_USE_MUTUAL_EXCLUSION */
+#endif
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* HAL_USE_SPI */
+#endif /* HAL_USE_SPI == TRUE */
 
 #endif /* _SPI_H_ */
 

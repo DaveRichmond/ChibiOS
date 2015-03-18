@@ -1,4 +1,4 @@
-# List of the ChibiOS/RT Cortex-M3 STM32F1xx port files.
+# List of the ChibiOS/RT ARM LPC214x port files.
 PORTSRC = ${CHIBIOS}/os/rt/ports/ARM/chcore.c
 
 PORTASM = $(CHIBIOS)/os/common/ports/ARM/compilers/GCC/vectors.s \

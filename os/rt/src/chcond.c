@@ -39,7 +39,7 @@
 
 #include "ch.h"
 
-#if CH_CFG_USE_CONDVARS || defined(__DOXYGEN__)
+#if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
@@ -116,7 +116,7 @@ void chCondSignalI(condition_variable_t *cp) {
   if (queue_notempty(&cp->c_queue)) {
     thread_t *tp = queue_fifo_remove(&cp->c_queue);
     tp->p_u.rdymsg = MSG_OK;
-    chSchReadyI(tp);
+    (void) chSchReadyI(tp);
   }
 }
 
@@ -154,7 +154,7 @@ void chCondBroadcastI(condition_variable_t *cp) {
   /* Empties the condition variable queue and inserts all the threads into the
      ready list in FIFO order. The wakeup message is set to @p MSG_RESET in
      order to make a chCondBroadcast() detectable from a chCondSignal().*/
-  while (cp->c_queue.p_next != (void *)&cp->c_queue) {
+  while (queue_notempty(&cp->c_queue)) {
     chSchReadyI(queue_fifo_remove(&cp->c_queue))->p_u.rdymsg = MSG_RESET;
   }
 }
@@ -226,7 +226,7 @@ msg_t chCondWaitS(condition_variable_t *cp) {
   return msg;
 }
 
-#if CH_CFG_USE_CONDVARS_TIMEOUT || defined(__DOXYGEN__)
+#if (CH_CFG_USE_CONDVARS_TIMEOUT == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Waits on the condition variable releasing the mutex lock.
  * @details Releases the currently owned mutex, waits on the condition
@@ -316,8 +316,8 @@ msg_t chCondWaitTimeoutS(condition_variable_t *cp, systime_t time) {
 
   return msg;
 }
-#endif /* CH_CFG_USE_CONDVARS_TIMEOUT */
+#endif /* CH_CFG_USE_CONDVARS_TIMEOUT == TRUE */
 
-#endif /* CH_CFG_USE_CONDVARS */
+#endif /* CH_CFG_USE_CONDVARS == TRUE */
 
 /** @} */

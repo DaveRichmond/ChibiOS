@@ -28,7 +28,7 @@
 #ifndef _SERIAL_H_
 #define _SERIAL_H_
 
-#if HAL_USE_SERIAL || defined(__DOXYGEN__)
+#if (HAL_USE_SERIAL == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver constants.                                                         */
@@ -38,11 +38,11 @@
  * @name    Serial status flags
  * @{
  */
-#define SD_PARITY_ERROR         32  /**< @brief Parity error happened.      */
-#define SD_FRAMING_ERROR        64  /**< @brief Framing error happened.     */
-#define SD_OVERRUN_ERROR        128 /**< @brief Overflow happened.          */
-#define SD_NOISE_ERROR          256 /**< @brief Noise on the line.          */
-#define SD_BREAK_DETECTED       512 /**< @brief Break detected.             */
+#define SD_PARITY_ERROR         (eventflags_t)32    /**< @brief Parity.     */
+#define SD_FRAMING_ERROR        (eventflags_t)64    /**< @brief Framing.    */
+#define SD_OVERRUN_ERROR        (eventflags_t)128   /**< @brief Overflow.   */
+#define SD_NOISE_ERROR          (eventflags_t)256   /**< @brief Line noise. */
+#define SD_BREAK_DETECTED       (eventflags_t)512   /**< @brief LIN Break.  */
 /** @} */
 
 /*===========================================================================*/
@@ -304,7 +304,7 @@ extern "C" {
 }
 #endif
 
-#endif /* HAL_USE_SERIAL */
+#endif /* HAL_USE_SERIAL == TRUE */
 
 #endif /* _SERIAL_H_ */
 

@@ -27,7 +27,7 @@
 
 #include "hal.h"
 
-#if HAL_USE_CAN || defined(__DOXYGEN__)
+#if (HAL_USE_CAN == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
@@ -77,17 +77,17 @@ void canObjectInit(CANDriver *canp) {
   osalEventObjectInit(&canp->rxfull_event);
   osalEventObjectInit(&canp->txempty_event);
   osalEventObjectInit(&canp->error_event);
-#if CAN_USE_SLEEP_MODE
+#if CAN_USE_SLEEP_MODE == TRUE
   osalEventObjectInit(&canp->sleep_event);
   osalEventObjectInit(&canp->wakeup_event);
-#endif /* CAN_USE_SLEEP_MODE */
+#endif
 }
 
 /**
  * @brief   Configures and activates the CAN peripheral.
- * @note    Activating the CAN bus can be a slow operation this this function
- *          is not atomic, it waits internally for the initialization to
- *          complete.
+ * @note    Activating the CAN bus can be a slow operation.
+ * @note    Unlike other drivers it is not possible to restart the CAN
+ *          driver without first stopping it using canStop().
  *
  * @param[in] canp      pointer to the @p CANDriver object
  * @param[in] config    pointer to the @p CANConfig object. Depending on
@@ -100,17 +100,18 @@ void canStart(CANDriver *canp, const CANConfig *config) {
   osalDbgCheck(canp != NULL);
 
   osalSysLock();
-  osalDbgAssert((canp->state == CAN_STOP) ||
-                (canp->state == CAN_STARTING) ||
-                (canp->state == CAN_READY),
-                "invalid state");
-  while (canp->state == CAN_STARTING)
-    osalThreadSleepS(1);
-  if (canp->state == CAN_STOP) {
-    canp->config = config;
-    can_lld_start(canp);
-    canp->state = CAN_READY;
-  }
+  osalDbgAssert(canp->state == CAN_STOP, "invalid state");
+
+  /* Entering initialization mode. */
+  canp->state = CAN_STARTING;
+  canp->config = config;
+
+  /* Low level initialization, could be a slow process and sleeps could
+     be performed inside.*/
+  can_lld_start(canp);
+
+  /* The driver finally goes into the ready state.*/
+  canp->state = CAN_READY;
   osalSysUnlock();
 }
 
@@ -128,8 +129,13 @@ void canStop(CANDriver *canp) {
   osalSysLock();
   osalDbgAssert((canp->state == CAN_STOP) || (canp->state == CAN_READY),
                 "invalid state");
+
+  /* The low level driver is stopped.*/
   can_lld_stop(canp);
   canp->state  = CAN_STOP;
+
+  /* Threads waiting on CAN APIs are notified that the driver has been
+     stopped in order to not have stuck threads.*/
   osalThreadDequeueAllI(&canp->rxqueue, MSG_RESET);
   osalThreadDequeueAllI(&canp->txqueue, MSG_RESET);
   osalOsRescheduleS();
@@ -163,13 +169,15 @@ msg_t canTransmit(CANDriver *canp,
                   systime_t timeout) {
 
   osalDbgCheck((canp != NULL) && (ctfp != NULL) &&
-               (mailbox <= CAN_TX_MAILBOXES));
+               (mailbox <= (canmbx_t)CAN_TX_MAILBOXES));
 
   osalSysLock();
   osalDbgAssert((canp->state == CAN_READY) || (canp->state == CAN_SLEEP),
                 "invalid state");
+  /*lint -save -e9007 [13.5] Right side is supposed to be pure.*/
   while ((canp->state == CAN_SLEEP) || !can_lld_is_tx_empty(canp, mailbox)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&canp->txqueue, timeout);
+  /*lint -restore*/
+   msg_t msg = osalThreadEnqueueTimeoutS(&canp->txqueue, timeout);
     if (msg != MSG_OK) {
       osalSysUnlock();
       return msg;
@@ -208,12 +216,14 @@ msg_t canReceive(CANDriver *canp,
                  systime_t timeout) {
 
   osalDbgCheck((canp != NULL) && (crfp != NULL) &&
-               (mailbox < CAN_RX_MAILBOXES));
+               (mailbox < (canmbx_t)CAN_RX_MAILBOXES));
 
   osalSysLock();
   osalDbgAssert((canp->state == CAN_READY) || (canp->state == CAN_SLEEP),
                 "invalid state");
+  /*lint -save -e9007 [13.5] Right side is supposed to be pure.*/
   while ((canp->state == CAN_SLEEP) || !can_lld_is_rx_nonempty(canp, mailbox)) {
+  /*lint -restore*/
     msg_t msg = osalThreadEnqueueTimeoutS(&canp->rxqueue, timeout);
     if (msg != MSG_OK) {
       osalSysUnlock();
@@ -225,7 +235,7 @@ msg_t canReceive(CANDriver *canp,
   return MSG_OK;
 }
 
-#if CAN_USE_SLEEP_MODE || defined(__DOXYGEN__)
+#if (CAN_USE_SLEEP_MODE == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Enters the sleep mode.
  * @details This function puts the CAN driver in sleep mode and broadcasts
@@ -248,7 +258,7 @@ void canSleep(CANDriver *canp) {
   if (canp->state == CAN_READY) {
     can_lld_sleep(canp);
     canp->state = CAN_SLEEP;
-    osalEventBroadcastFlagsI(&canp->sleep_event, 0);
+    osalEventBroadcastFlagsI(&canp->sleep_event, (eventflags_t)0);
     osalOsRescheduleS();
   }
   osalSysUnlock();
@@ -271,13 +281,13 @@ void canWakeup(CANDriver *canp) {
   if (canp->state == CAN_SLEEP) {
     can_lld_wakeup(canp);
     canp->state = CAN_READY;
-    osalEventBroadcastFlagsI(&canp->wakeup_event, 0);
+    osalEventBroadcastFlagsI(&canp->wakeup_event, (eventflags_t)0);
     osalOsRescheduleS();
   }
   osalSysUnlock();
 }
-#endif /* CAN_USE_SLEEP_MODE */
+#endif /* CAN_USE_SLEEP_MODE == TRUE */
 
-#endif /* HAL_USE_CAN */
+#endif /* HAL_USE_CAN == TRUE */
 
 /** @} */

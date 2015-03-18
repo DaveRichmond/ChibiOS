@@ -77,8 +77,10 @@
 #include "serial_usb.h"
 
 /* Community drivers.*/
-#if HAL_USE_COMMUNITY
+#if defined(HAL_USE_COMMUNITY) || defined(__DOXYGEN__)
+#if (HAL_USE_COMMUNITY == TRUE) || defined(__DOXYGEN__)
 #include "hal_community.h"
+#endif
 #endif
 
 /*===========================================================================*/
@@ -86,11 +88,24 @@
 /*===========================================================================*/
 
 /**
+ * @name    HAL identification
+ * @{
+ */
+#define _HAL_
+
+#define HAL_VERSION             "3.0.0dev"
+
+#define CH_HAL_MAJOR            3
+#define CH_HAL_MINOR            0
+#define CH_HAL_PATCH            0
+/** @} */
+
+/**
  * @name    Return codes
  * @{
  */
-#define HAL_SUCCESS                         false
-#define HAL_FAILED                          true
+#define HAL_SUCCESS             false
+#define HAL_FAILED              true
 /** @} */
 
 /*===========================================================================*/

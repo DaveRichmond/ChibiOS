@@ -78,7 +78,7 @@
 #error "CH_CFG_TIME_QUANTUM not supported in tickless mode"
 #endif
 
-#if (CH_CFG_ST_TIMEDELTA > 0) && CH_DBG_THREADS_PROFILING
+#if (CH_CFG_ST_TIMEDELTA > 0) && (CH_DBG_THREADS_PROFILING == TRUE)
 #error "CH_DBG_THREADS_PROFILING not supported in tickless mode"
 #endif
 
@@ -283,7 +283,7 @@ static inline bool chVTIsTimeWithinX(systime_t time,
                                      systime_t start,
                                      systime_t end) {
 
-  return (bool)(time - start < end - start);
+  return (bool)((time - start) < (end - start));
 }
 
 /**
@@ -451,9 +451,12 @@ static inline void chVTDoTickI(void) {
     virtual_timer_t *vtp;
 
     --ch.vtlist.vt_next->vt_delta;
-    while (!(vtp = ch.vtlist.vt_next)->vt_delta) {
-      vtfunc_t fn = vtp->vt_func;
-      vtp->vt_func = (vtfunc_t)NULL;
+    while (ch.vtlist.vt_next->vt_delta == (systime_t)0) {
+      vtfunc_t fn;
+
+      vtp = ch.vtlist.vt_next;
+      fn = vtp->vt_func;
+      vtp->vt_func = NULL;
       vtp->vt_next->vt_prev = (virtual_timer_t *)&ch.vtlist;
       ch.vtlist.vt_next = vtp->vt_next;
       chSysUnlockFromISR();
@@ -476,7 +479,8 @@ static inline void chVTDoTickI(void) {
 
     /* The next element is outside the current time window, the loop
        is stopped here.*/
-    if ((vtp = ch.vtlist.vt_next)->vt_delta > delta) {
+    vtp = ch.vtlist.vt_next;
+    if (vtp->vt_delta > delta) {
       break;
     }
 
@@ -488,7 +492,7 @@ static inline void chVTDoTickI(void) {
     vtp->vt_next->vt_prev = (virtual_timer_t *)&ch.vtlist;
     ch.vtlist.vt_next = vtp->vt_next;
     fn = vtp->vt_func;
-    vtp->vt_func = (vtfunc_t)NULL;
+    vtp->vt_func = NULL;
 
     /* The callback is invoked outside the kernel critical zone.*/
     chSysUnlockFromISR();
@@ -503,11 +507,11 @@ static inline void chVTDoTickI(void) {
   else {
     /* Updating the alarm to the next deadline, deadline that must not be
        closer in time than the minimum time delta.*/
-    if (vtp->vt_delta >= CH_CFG_ST_TIMEDELTA) {
+    if (vtp->vt_delta >= (systime_t)CH_CFG_ST_TIMEDELTA) {
       port_timer_set_alarm(now + vtp->vt_delta);
     }
     else {
-      port_timer_set_alarm(now + CH_CFG_ST_TIMEDELTA);
+      port_timer_set_alarm(now + (systime_t)CH_CFG_ST_TIMEDELTA);
     }
   }
 #endif /* CH_CFG_ST_TIMEDELTA > 0 */
